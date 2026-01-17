@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClearSpend - Credit Card Tracker</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json">
+  
+  <!-- Theme colors for Android -->
+  <meta name="theme-color" content="#6366f1">
+  <meta name="background-color" content="#0f172a">
+  
+  <!-- iOS specific -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ClearSpend">
+  <link rel="apple-touch-icon" href="icon-512.png">
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect x='4' y='4' width='40' height='40' rx='12' fill='%236366F1'/><path d='M24 14v20M16 20l8-4 8 4M16 28l8 4 8-4' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/><circle cx='24' cy='24' r='3' fill='white'/></svg>">
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    }
+  </style>
+  
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(registration => {
+            console.log('ServiceWorker registered:', registration);
+          })
+          .catch(error => {
+            console.log('ServiceWorker registration failed:', error);
+          });
+      });
+    }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const DEFAULT_CATEGORIES = ['Grab', 'Shopee', 'Flight', 'Online', 'Contactless', 'AirBnB'];
+
+    const Plus = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+    const X = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    const Edit2 = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
+    const Trash2 = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+    const DollarSign = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+    const Calendar = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+    const Plane = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>;
+    const Building2 = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>;
+    const RotateCcw = ({ size = 24 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
+
+    function CardTracker() {
+      const [activeTab, setActiveTab] = useState('spend');
+      const [cards, setCards] = useState([]);
+      const [showModal, setShowModal] = useState(false);
+      const [showExpenseModal, setShowExpenseModal] = useState(false);
+      const [editingCard, setEditingCard] = useState(null);
+      const [cardName, setCardName] = useState('');
+      const [refreshDate, setRefreshDate] = useState('1');
+      const [selectedCategories, setSelectedCategories] = useState([]);
+      const [customCategories, setCustomCategories] = useState([]);
+      const [newCategory, setNewCategory] = useState('');
+      const [segments, setSegments] = useState([{id: Date.now(), name: 'General', minSpend: '', maxSpend: ''}]);
+      const [selectedCard, setSelectedCard] = useState(null);
+      const [selectedSegmentId, setSelectedSegmentId] = useState(null);
+      const [expenseAmount, setExpenseAmount] = useState('');
+      const [memberships, setMemberships] = useState([]);
+      const [showMilesModal, setShowMilesModal] = useState(false);
+      const [editingMembership, setEditingMembership] = useState(null);
+      const [membershipForm, setMembershipForm] = useState({name: '', type: 'airline', miles: ''});
+      const [lastEdited, setLastEdited] = useState('');
+      const [showEditDate, setShowEditDate] = useState(false);
+      const [tempDate, setTempDate] = useState('');
+      const [showConfirmModal, setShowConfirmModal] = useState(false);
+      const [confirmAction, setConfirmAction] = useState(null);
+      const [confirmMessage, setConfirmMessage] = useState('');
+
+      useEffect(() => {
+        const stored = localStorage.getItem('creditCards');
+        const storedCustomCats = localStorage.getItem('customCategories');
+        const storedMemberships = localStorage.getItem('memberships');
+        const storedLastEdited = localStorage.getItem('lastEdited');
+        
+        if (stored) {
+          const loadedCards = JSON.parse(stored);
+          const resetCards = checkAndResetCards(loadedCards);
+          setCards(resetCards);
+        }
+        
+        if (storedCustomCats) setCustomCategories(JSON.parse(storedCustomCats));
+        if (storedMemberships) setMemberships(JSON.parse(storedMemberships));
+        if (storedLastEdited) {
+          setLastEdited(storedLastEdited);
+        } else {
+          const now = new Date();
+          setLastEdited(now.toLocaleDateString('en-US', {month: 'short', year: 'numeric'}));
+        }
+      }, []);
+
+      useEffect(() => { if (cards.length > 0) localStorage.setItem('creditCards', JSON.stringify(cards)); }, [cards]);
+      useEffect(() => { if (customCategories.length > 0) localStorage.setItem('customCategories', JSON.stringify(customCategories)); }, [customCategories]);
+      useEffect(() => { if (memberships.length > 0) localStorage.setItem('memberships', JSON.stringify(memberships)); }, [memberships]);
+      useEffect(() => { if (lastEdited) localStorage.setItem('lastEdited', lastEdited); }, [lastEdited]);
+
+      const checkAndResetCards = (cardsToCheck) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return cardsToCheck.map(card => {
+          const refreshDay = parseInt(card.refreshDate);
+          const lastRefresh = card.lastRefresh ? new Date(card.lastRefresh) : null;
+          if (lastRefresh) {
+            lastRefresh.setHours(0, 0, 0, 0);
+          }
+          let expectedRefresh = new Date(today.getFullYear(), today.getMonth(), refreshDay);
+          if (today.getDate() < refreshDay) {
+            expectedRefresh = new Date(today.getFullYear(), today.getMonth() - 1, refreshDay);
+          }
+          expectedRefresh.setHours(0, 0, 0, 0);
+          if (!lastRefresh || expectedRefresh > lastRefresh) {
+            return {...card, segments: card.segments.map(seg => ({...seg, currentSpend: 0})), lastRefresh: expectedRefresh.toISOString()};
+          }
+          return card;
+        });
+      };
+
+      const addCard = () => {
+        if (!cardName || segments.some(s => !s.maxSpend)) return;
+        setCards([...cards, {id: Date.now(), name: cardName, refreshDate, lastRefresh: new Date().toISOString(), categories: selectedCategories, segments: segments.map(s => ({...s, minSpend: parseFloat(s.minSpend) || 0, maxSpend: parseFloat(s.maxSpend), currentSpend: 0}))}]);
+        resetForm();
+        setShowModal(false);
+      };
+
+      const openEditCard = (card) => {
+        setEditingCard(card);
+        setCardName(card.name);
+        setRefreshDate(card.refreshDate);
+        setSelectedCategories(card.categories || []);
+        setSegments(card.segments.map(s => ({...s, minSpend: s.minSpend.toString(), maxSpend: s.maxSpend.toString()})));
+        setShowModal(true);
+      };
+
+      const updateCard = () => {
+        if (!cardName || segments.some(s => !s.maxSpend)) return;
+        setCards(cards.map(card => card.id === editingCard.id ? {...card, name: cardName, refreshDate, categories: selectedCategories, segments: segments.map((s, idx) => ({...s, minSpend: parseFloat(s.minSpend) || 0, maxSpend: parseFloat(s.maxSpend), currentSpend: card.segments[idx]?.currentSpend || 0}))} : card));
+        resetForm();
+        setEditingCard(null);
+        setShowModal(false);
+      };
+
+      const deleteCard = (id) => { setConfirmMessage('Remove this card?'); setConfirmAction(() => () => { setCards(cards.filter(c => c.id !== id)); setShowConfirmModal(false); }); setShowConfirmModal(true); };
+      const resetCardSpending = (id) => { setConfirmMessage('Reset spending for this card?'); setConfirmAction(() => () => { setCards(cards.map(card => card.id === id ? {...card, segments: card.segments.map(seg => ({...seg, currentSpend: 0}))} : card)); setShowConfirmModal(false); }); setShowConfirmModal(true); };
+      const resetForm = () => { setCardName(''); setRefreshDate('1'); setSelectedCategories([]); setSegments([{id: Date.now(), name: 'General', minSpend: '', maxSpend: ''}]); };
+      
+      const openExpenseModal = (card) => {
+        setSelectedCard(card);
+        setSelectedSegmentId(card.segments[0].id);
+        setExpenseAmount('');
+        setShowExpenseModal(true);
+      };
+
+      const addExpense = () => {
+        if (!expenseAmount || !selectedCard || selectedSegmentId === null) return;
+        const amount = parseFloat(expenseAmount);
+        setCards(cards.map(card => card.id === selectedCard.id ? {...card, segments: card.segments.map(seg => seg.id === selectedSegmentId ? {...seg, currentSpend: seg.currentSpend + amount} : seg)} : card));
+        setExpenseAmount('');
+        setShowExpenseModal(false);
+        setSelectedCard(null);
+        setSelectedSegmentId(null);
+      };
+
+      const addMembership = () => {
+        if (!membershipForm.name || !membershipForm.miles) return;
+        setMemberships([...memberships, {id: Date.now(), name: membershipForm.name, type: membershipForm.type, miles: parseFloat(membershipForm.miles)}]);
+        resetMembershipForm();
+        setShowMilesModal(false);
+        updateLastEdited();
+      };
+
+      const openEditMembership = (m) => {
+        setEditingMembership(m);
+        setMembershipForm({name: m.name, type: m.type, miles: m.miles.toString()});
+        setShowMilesModal(true);
+      };
+
+      const updateMembership = () => {
+        if (!membershipForm.name || !membershipForm.miles) return;
+        setMemberships(memberships.map(m => m.id === editingMembership.id ? {...m, name: membershipForm.name, type: membershipForm.type, miles: parseFloat(membershipForm.miles)} : m));
+        resetMembershipForm();
+        setEditingMembership(null);
+        setShowMilesModal(false);
+        updateLastEdited();
+      };
+
+      const deleteMembership = (id) => { setConfirmMessage('Remove this membership?'); setConfirmAction(() => () => { setMemberships(memberships.filter(m => m.id !== id)); updateLastEdited(); setShowConfirmModal(false); }); setShowConfirmModal(true); };
+      const resetMembershipForm = () => setMembershipForm({name: '', type: 'airline', miles: ''});
+      const updateLastEdited = () => setLastEdited(new Date().toLocaleDateString('en-US', {month: 'short', year: 'numeric'}));
+      const saveEditedDate = () => { if (tempDate.trim()) setLastEdited(tempDate); setShowEditDate(false); setTempDate(''); };
+      const getTotalMiles = () => memberships.reduce((sum, m) => sum + m.miles, 0);
+      const getRefreshText = (d) => { const day = parseInt(d); return `Reset ${day}${day === 1 || day === 21 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th'} of month`; };
+      const getOrdinalSuffix = (d) => { const n = parseInt(d); return n === 1 || n === 21 ? 'st' : n === 2 || n === 22 ? 'nd' : n === 3 || n === 23 ? 'rd' : 'th'; };
+      const toggleCategory = (cat) => setSelectedCategories(selectedCategories.includes(cat) ? selectedCategories.filter(c => c !== cat) : [...selectedCategories, cat]);
+      const addCustomCategory = () => { const t = newCategory.trim(); if (!t || customCategories.includes(t)) return; setCustomCategories([...customCategories, t]); setNewCategory(''); };
+      const addSegment = () => setSegments([...segments, {id: Date.now() + Math.random(), name: '', minSpend: '', maxSpend: ''}]);
+      const removeSegment = (id) => { if (segments.length <= 1) return; setSegments(segments.filter(s => s.id !== id)); };
+      const updateSegment = (id, field, value) => setSegments(segments.map(s => s.id === id ? {...s, [field]: value} : s));
+      const getProgressColor = (curr, min, max) => curr >= max ? '#EF4444' : (min && curr >= min ? '#10B981' : '#FBBF24');
+
+      return (
+        <div className="min-h-screen bg-slate-900 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <rect x="4" y="4" width="40" height="40" rx="12" fill="url(#gradient)"/>
+                <path d="M24 14v20M16 20l8-4 8 4M16 28l8 4 8-4" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="24" cy="24" r="3" fill="white"/>
+                <defs><linearGradient id="gradient" x1="4" y1="4" x2="44" y2="44"><stop stopColor="#6366F1"/><stop offset="1" stopColor="#8B5CF6"/></linearGradient></defs>
+              </svg>
+              <h1 className="text-3xl font-bold text-white">ClearSpend</h1>
+            </div>
+            <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+              <button onClick={() => setActiveTab('spend')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'spend' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>Spend</button>
+              <button onClick={() => setActiveTab('miles')} className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'miles' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>Miles</button>
+            </div>
+          </div>
+
+          {activeTab === 'spend' ? (
+            <>
+              {cards.length === 0 ? (
+                <div className="text-center py-16"><DollarSign className="mx-auto text-slate-600 mb-4" size={48}/><p className="text-slate-400">No cards yet. Click + to add one.</p></div>
+              ) : (
+                <div className="space-y-4">
+                  {cards.map(card => (
+                    <div key={card.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-white font-semibold">{card.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 text-xs text-slate-400"><Calendar size={12}/><span>{getRefreshText(card.refreshDate)}</span></div>
+                          <button onClick={() => resetCardSpending(card.id)} className="p-1.5 bg-slate-700/50 rounded-lg hover:bg-slate-700" title="Reset spending"><RotateCcw size={14} className="text-slate-400"/></button>
+                          <button onClick={() => openEditCard(card)} className="p-1.5 bg-slate-700/50 rounded-lg hover:bg-slate-700"><Edit2 size={14} className="text-slate-400"/></button>
+                          <button onClick={() => deleteCard(card.id)} className="p-1.5 bg-slate-700/50 rounded-lg hover:bg-red-900/50"><Trash2 size={14} className="text-slate-400"/></button>
+                        </div>
+                      </div>
+                      {card.categories && card.categories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">{card.categories.map(cat => <span key={cat} className="px-2 py-1 bg-indigo-600/30 text-indigo-300 rounded text-xs border border-indigo-500/50">{cat}</span>)}</div>
+                      )}
+                      <div className="space-y-3 mb-3">
+                        {card.segments.map(seg => {
+                          const pp = Math.min((seg.currentSpend / seg.maxSpend) * 100, 100);
+                          const mp = seg.minSpend ? (seg.minSpend / seg.maxSpend) * 100 : 0;
+                          const pc = getProgressColor(seg.currentSpend, seg.minSpend, seg.maxSpend);
+                          return (
+                            <div key={seg.id} className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                              {card.segments.length > 1 && seg.name && <div className="text-sm font-medium text-slate-300 mb-2">{seg.name}</div>}
+                              <div className="mb-2 relative">
+                                <div className="h-3 bg-slate-700 rounded-full overflow-hidden relative">
+                                  {mp > 0 && <div className="absolute top-0 bottom-0 w-0.5 bg-white z-10" style={{left: `${mp}%`}}><div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full"/><div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full"/></div>}
+                                  <div className="h-full rounded-full transition-all duration-500" style={{width: `${pp}%`, backgroundColor: pc}}/>
+                                </div>
+                              </div>
+                              <div className="text-slate-300 text-sm">${seg.currentSpend} / ${seg.maxSpend}{seg.minSpend > 0 && <span className="ml-2 text-xs text-slate-400">(min: ${seg.minSpend})</span>}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <button onClick={() => openExpenseModal(card)} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-semibold transition-all flex items-center justify-center gap-2"><Plus size={18}/>Add Expense</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => {setShowModal(true); setEditingCard(null);}} className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={28}/></button>
+            </>
+          ) : (
+            <>
+              <div className="mb-6 space-y-4">
+                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-slate-400">Last Edited</span>
+                    {!showEditDate ? (
+                      <button onClick={() => {setShowEditDate(true); setTempDate(lastEdited);}} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg hover:bg-slate-700">
+                        <span className="text-white font-medium">{lastEdited}</span><Edit2 size={14} className="text-slate-400"/>
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input type="text" value={tempDate} onChange={(e) => setTempDate(e.target.value)} placeholder="e.g., Dec 2025" className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" autoFocus/>
+                        <button onClick={saveEditedDate} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm">Save</button>
+                        <button onClick={() => {setShowEditDate(false); setTempDate('');}} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl p-6 border border-indigo-500">
+                  <div className="text-sm text-indigo-200 mb-1">Total Miles Available</div>
+                  <div className="text-4xl font-bold text-white">{getTotalMiles().toLocaleString()}</div>
+                </div>
+              </div>
+              {memberships.length === 0 ? (
+                <div className="text-center py-16"><Plane className="mx-auto text-slate-600 mb-4" size={48}/><p className="text-slate-400">No memberships yet. Click + to add one.</p></div>
+              ) : (
+                <div className="space-y-4">
+                  {memberships.map(m => (
+                    <div key={m.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          {m.type === 'airline' ? <Plane size={20} className="text-indigo-400"/> : <Building2 size={20} className="text-purple-400"/>}
+                          <div><h3 className="text-white font-semibold">{m.name}</h3><span className="text-xs text-slate-400 capitalize">{m.type}</span></div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openEditMembership(m)} className="p-1.5 bg-slate-700/50 rounded-lg hover:bg-slate-700"><Edit2 size={14} className="text-slate-400"/></button>
+                          <button onClick={() => deleteMembership(m.id)} className="p-1.5 bg-slate-700/50 rounded-lg hover:bg-red-900/50"><Trash2 size={14} className="text-slate-400"/></button>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-bold text-white">{m.miles.toLocaleString()} <span className="text-sm text-slate-400 font-normal">miles</span></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => {setShowMilesModal(true); setEditingMembership(null);}} className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={28}/></button>
+            </>
+          )}
+
+          {showModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-white">{editingCard ? 'Edit Card' : 'Add Card'}</h2>
+                  <button onClick={() => {setShowModal(false); resetForm(); setEditingCard(null);}}><X className="text-slate-400"/></button>
+                </div>
+                <input type="text" value={cardName} onChange={e => setCardName(e.target.value)} placeholder="Card name" className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white mb-4"/>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-300 mb-2 block">Refresh Date</label>
+                  <div className="flex items-center gap-2">
+                    <select value={refreshDate} onChange={e => setRefreshDate(e.target.value)} className="px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                      {Array.from({length: 28}, (_, i) => i + 1).map(day => <option key={day} value={day}>{day}{getOrdinalSuffix(day)}</option>)}
+                    </select>
+                    <span className="text-slate-300">of the month</span>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-300 mb-2 block">Categories</label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {DEFAULT_CATEGORIES.map(cat => <button key={cat} onClick={() => toggleCategory(cat)} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${selectedCategories.includes(cat) ? 'bg-indigo-600 text-white border-2 border-indigo-400' : 'bg-slate-700 text-slate-300 border-2 border-slate-600'}`}>{cat}</button>)}
+                    {customCategories.map(cat => <button key={cat} onClick={() => toggleCategory(cat)} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${selectedCategories.includes(cat) ? 'bg-indigo-600 text-white border-2 border-indigo-400' : 'bg-slate-700 text-slate-300 border-2 border-slate-600'}`}>{cat}</button>)}
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="text" value={newCategory} onChange={e => setNewCategory(e.target.value)} onKeyPress={e => e.key === 'Enter' && addCustomCategory()} placeholder="Add custom category..." className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm"/>
+                    <button onClick={addCustomCategory} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm">Add</button>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="text-sm font-medium text-slate-300">Spending Segments</label>
+                    <button onClick={addSegment} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-xs font-medium">+ Add Segment</button>
+                  </div>
+                  <div className="space-y-3">
+                    {segments.map((seg, idx) => (
+                      <div key={seg.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-slate-400">Segment {idx + 1}</span>
+                          {segments.length > 1 && <button onClick={() => removeSegment(seg.id)} className="text-slate-500 hover:text-red-400"><X size={16}/></button>}
+                        </div>
+                        <input type="text" value={seg.name} onChange={e => updateSegment(seg.id, 'name', e.target.value)} placeholder="e.g., Overseas Spending, Local" className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"/>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="number" value={seg.minSpend} onChange={e => updateSegment(seg.id, 'minSpend', e.target.value)} placeholder="Min spend" className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"/>
+                          <input type="number" value={seg.maxSpend} onChange={e => updateSegment(seg.id, 'maxSpend', e.target.value)} placeholder="Max spend" className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm"/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={editingCard ? updateCard : addCard} disabled={!cardName || segments.some(s => !s.maxSpend)} className="w-full py-3 bg-indigo-600 rounded-lg text-white font-semibold disabled:opacity-50">{editingCard ? 'Update Card' : 'Add Card'}</button>
+              </div>
+            </div>
+          )}
+
+          {showExpenseModal && selectedCard && (
+            <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-white">Add Expense</h2>
+                  <button onClick={() => {setShowExpenseModal(false); setExpenseAmount('');}}><X className="text-slate-400"/></button>
+                </div>
+                <div className="mb-4 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                  <p className="text-sm text-slate-400">Card</p>
+                  <p className="text-lg font-semibold text-white">{selectedCard.name}</p>
+                </div>
+                {selectedCard.segments.length > 1 && (
+                  <div className="mb-4">
+                    <label className="text-sm font-medium text-slate-300 mb-2 block">Segment</label>
+                    <select value={selectedSegmentId} onChange={e => setSelectedSegmentId(parseFloat(e.target.value))} className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                      {selectedCard.segments.map(seg => <option key={seg.id} value={seg.id}>{seg.name || 'General'}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-300 mb-2 block">Amount</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl">$</span>
+                    <input type="number" step="0.01" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} placeholder="0.00" className="w-full pl-10 pr-4 py-4 bg-slate-900 border border-slate-700 rounded-lg text-white text-xl" autoFocus/>
+                  </div>
+                </div>
+                <button onClick={addExpense} disabled={!expenseAmount} className="w-full py-3 bg-indigo-600 rounded-lg text-white font-semibold disabled:opacity-50">Add Expense</button>
+              </div>
+            </div>
+          )}
+
+          {showMilesModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-white">{editingMembership ? 'Edit Membership' : 'Add Membership'}</h2>
+                  <button onClick={() => {setShowMilesModal(false); resetMembershipForm(); setEditingMembership(null);}}><X className="text-slate-400"/></button>
+                </div>
+                <input type="text" value={membershipForm.name} onChange={e => setMembershipForm({...membershipForm, name: e.target.value})} placeholder="Membership name (e.g., Singapore Airlines KrisFlyer)" className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white mb-4"/>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-300 mb-2 block">Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => setMembershipForm({...membershipForm, type: 'airline'})} className={`p-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${membershipForm.type === 'airline' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-700 border-slate-600 text-slate-300'}`}><Plane size={18}/>Airline</button>
+                    <button onClick={() => setMembershipForm({...membershipForm, type: 'bank'})} className={`p-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${membershipForm.type === 'bank' ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-700 border-slate-600 text-slate-300'}`}><Building2 size={18}/>Bank</button>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-slate-300 mb-2 block">Miles</label>
+                  <input type="number" value={membershipForm.miles} onChange={e => setMembershipForm({...membershipForm, miles: e.target.value})} placeholder="0" className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white"/>
+                </div>
+                <button onClick={editingMembership ? updateMembership : addMembership} disabled={!membershipForm.name || !membershipForm.miles} className="w-full py-3 bg-indigo-600 rounded-lg text-white font-semibold disabled:opacity-50">{editingMembership ? 'Update Membership' : 'Add Membership'}</button>
+              </div>
+            </div>
+          )}
+
+          {showConfirmModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm border border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-4">{confirmMessage}</h3>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-semibold transition-all">No</button>
+                  <button onClick={confirmAction} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-semibold transition-all">Yes</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<CardTracker />);
+  </script>
+</body>
+</html>
